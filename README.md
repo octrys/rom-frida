@@ -9,8 +9,8 @@ registration (field types, offsets, method RVAs) is only readable at **runtime**
 after Themida unpacks it in memory. Static dumping is out; these agents walk the
 live, unpacked il2cpp domain instead.
 
-Right now the repo ships a single agent — the full client dump. More will be
-added here as they are built.
+Agents so far: the full client dump, and a typed table dump. More will be added
+here as they are built.
 
 ## Setup
 
@@ -51,6 +51,28 @@ to slim it. The `.cs` dump is always complete.
 ```bash
 python spawn.py dump_client.js
 ```
+
+### `scripts/dump_tables.js` — typed table dump
+
+Read-only. The game-data tables ship as a custom binary blob; their row structs
+are in the client dump, but the on-wire field order is bespoke and not derivable
+statically. This agent sidesteps that: it walks the live table database, reads
+every parsed row straight from memory, and serialises it fully typed (structs,
+enums, `List<T>`, arrays, strings) by the row's own field names. Writes to
+`storage/tables_runtime.json`, keyed by table name. Field names stay obfuscated,
+but the values and types are ground truth — enough to build an offline typed
+decoder for the bundle extractor.
+
+```bash
+python spawn.py dump_tables.js
+```
+
+Most tables are lazy-loaded, so the agent **force-loads every table** (it invokes
+each table's getter, which loads it from the local bundle) right before dumping.
+That means you can snapshot straight from the **title screen** — no in-game
+navigation needed. The snapshot is manual: **press Enter** in `spawn.py`'s console
+to force-load and dump; it writes the file and exits on its own. A 15-minute
+safety cap dumps whatever is loaded if you never trigger it.
 
 ## Output — `storage/`
 

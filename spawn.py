@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 
 import frida
 
@@ -77,8 +78,20 @@ session = device.attach(pid)
 with open(agent_path, "r", encoding="utf-8") as handle:
     source = handle.read()
 
+done = threading.Event()
+
+
+def on_message(msg, _data):
+    payload = msg.get("payload", msg)
+    print(payload)
+    # Agents that finish on their own (e.g. dump_tables.js) send {type:"done"};
+    # let the wrapper exit instead of idling forever.
+    if isinstance(payload, dict) and payload.get("type") == "done":
+        done.set()
+
+
 script = session.create_script(source)
-script.on("message", lambda msg, data: print(msg.get("payload", msg)))
+script.on("message", on_message)
 script.load()
 
 # Tell file-writing agents (e.g. dump_client.js) where to dump — over frida's
@@ -88,8 +101,26 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 script.post({"type": "config", "outDir": STORAGE_DIR})
 
 device.resume(pid)
-print("[*] injected + resumed. The dump writes on load; for hooking agents, reach")
-print("[*] the relevant screen (login/world). Ctrl+C to stop.")
+print("[*] injected + resumed. Some agents write on load; others wait for you to")
+print("[*] reach a screen (login/world) and press Enter here to trigger a snapshot.")
 
-# Keep the process alive so agent output keeps streaming.
-sys.stdin.read()
+
+def watch_stdin() -> None:
+    """Forward each Enter/line as a {type:"dump"} trigger to the agent."""
+    for _line in sys.stdin:
+        if done.is_set():
+            return
+        print("[*] snapshot trigger sent")
+        script.post({"type": "dump"})
+
+
+# Daemon so it never blocks exit once the agent signals done.
+threading.Thread(target=watch_stdin, daemon=True).start()
+
+# Stay alive so agent output keeps streaming. Exit on its own once an agent
+# signals completion (done event); otherwise wait until Ctrl+C.
+try:
+    done.wait()
+    print("[*] agent signalled done — detaching.")
+except KeyboardInterrupt:
+    pass
