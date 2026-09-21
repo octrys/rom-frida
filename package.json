@@ -1,0 +1,13 @@
+{
+  "name": "rom-frida",
+  "version": "0.1.0",
+  "private": true,
+  "description": "frida-il2cpp-bridge tools and scripts for ROM: Golden Age",
+  "scripts": {
+    "build": "frida-compile scripts/dump_client.js -o agent.js"
+  },
+  "devDependencies": {
+    "frida-compile": "^19.0.5",
+    "frida-il2cpp-bridge": "^0.13.2"
+  }
+}

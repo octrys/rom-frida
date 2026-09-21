@@ -1,0 +1,14 @@
+# node
+node_modules/
+
+# compiled agents
+agent.js
+
+# frida dumps (output dir; keep the folder, ignore its contents)
+/storage/*
+!/storage/.gitkeep
+*.dump
+
+# python
+__pycache__/
+*.py[cod]
