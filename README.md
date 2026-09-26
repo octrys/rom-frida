@@ -9,8 +9,8 @@ registration (field types, offsets, method RVAs) is only readable at **runtime**
 after Themida unpacks it in memory. Static dumping is out; these agents walk the
 live, unpacked il2cpp domain instead.
 
-Agents so far: the full client dump, a typed table dump, and a UI text trace.
-More will be added here as they are built.
+Agents so far: the full client dump, a typed table dump, a UI text trace, and
+a game code dump. More will be added here as they are built.
 
 This repo only collects data from the running client. The offline analysis
 that consumes it (table decoding, schema, field naming) lives in rom-tools'
@@ -135,6 +135,33 @@ move around (maps, monsters, NPCs feed the game-state snapshots), then press
 `storage/ui_trace_<UTC stamp>.jsonl`. The matching happens offline, in
 rom-tools' `datatables uitrace`, which accumulates every trace you feed it.
 Several distinct entries per window give the most evidence.
+
+### `scripts/dump_code.js` — game code dump
+
+Writes what rom-tools' `datatables xref` needs to find, in the game's own
+code, where each table column is read — the flags, ids and rules the UI never
+shows. Two files in `storage/`:
+
+- `gameassembly.bin` — the Themida-unpacked `GameAssembly.dll` image, byte for
+  byte at its RVA (file offset == RVA), so `rom_dump.cs`'s method RVAs from
+  the same build point straight into it (~180 MB).
+- `gameassembly_slots.json` — what each il2cpp metadata slot names. The code
+  reaches classes, methods (inflated generics included), fields and string
+  literals through `[rip+slot]` globals that hold an encoded token until
+  `il2cpp_codegen_initialize_runtime_metadata(&slot)` resolves them on a
+  method's first run. Each slot shows up in code as `lea rcx,[rip+slot];
+  call init`, and init is by far the most called target of that pair: the
+  agent scans the code for both, calls init on every slot (the call the game
+  itself makes) and records the class / method (with its RVA) / field /
+  string it then points to.
+
+Resolving the slots is its only side effect. Runs from the title screen and
+finishes on its own; copy both files to rom-tools' `resources/` (once per
+build).
+
+```bash
+python spawn.py dump_code.js
+```
 
 ## Output — `storage/`
 
